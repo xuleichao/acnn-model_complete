@@ -11,11 +11,11 @@ def attention_compose_plus_define(matrix_1, matrix_2):
     return torch.diag(matrix)
 
 def A_matrix_construct(matrix_head, matrix_end):
-    head_trace_matrix = torch.trace(matrix_head)
-    end_trace_matrix = torch.trace(matrix_end)
+    # head_trace_matrix = torch.trace(matrix_head)
+    # end_trace_matrix = torch.trace(matrix_end)
 
-    matrix_head_new = torch.exp(matrix_head) / torch.exp(head_trace_matrix)
-    matrix_end_new = torch.exp(matrix_end) / torch.exp(end_trace_matrix)
+    matrix_head_new = torch.exp(matrix_head) / torch.exp(torch.diag(matrix_head)).sum()
+    matrix_end_new = torch.exp(matrix_end) / torch.exp(torch.diag(matrix_end)).sum()
 
     return attention_compose_plus_define(matrix_head_new, matrix_end_new)
 

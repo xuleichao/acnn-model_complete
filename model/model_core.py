@@ -29,6 +29,15 @@ class Acnn(nn.Module):
         startpos_list_embedding_rsp = startpos_list_embedding.repeat(1, 3).reshape(2, -1, 50)
         return startpos_list_embedding_rsp
 
+    def _R_matrix_construct(self, start, end):
+        R = []
+        for i in range(start.shape[0]):
+            start_i = start[i]
+            end_i = end[i]
+            R_i = A_matrix_construct(start_i, end_i)
+            R.append(R_i.tolist())
+        return torch.from_numpy(np.array(R, dtype='float32'))
+
     def forward(self, sent_x, pos_left, pos_right, head_startpos_list, end_startpos_list, y):
         word_embedding = self.words_embedding(sent_x)
         pos_left_embedding = self.pos_embedding(pos_left)
@@ -42,7 +51,8 @@ class Acnn(nn.Module):
         # CNN输出结果
         cnn_result = self.cnn(net_embedding.permute(0, 2, 1))
         # 获得cnn compose 矩阵 R
-
+        R = self._R_matrix_construct(start_e_A, end_e_A)
+        cnn_result.bmm(R.reshape(2, 1, 3))
         print(cnn_result)
         print(cnn_result.shape)
 
