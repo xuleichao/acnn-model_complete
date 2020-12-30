@@ -15,19 +15,29 @@ class Acnn(nn.Module):
         self.words_embedding = AcnnEmbedding(13000, 50,
                                              pre_embedding_path=pre_w2v).init_embedding()
         self.pos_embedding = AcnnEmbedding(56, 50).init_embedding()
+        # attention first
 
-        # window_slide(9, 1, 8)
-        # attention
+        # res = A_matrix_construct(head_matrix, end_matrix)
         # cnn
         # pool attention
+    def _A_matrix_construct(self, startpos_list):
+        startpos_list_embedding = self.words_embedding(startpos_list)
+        startpos_list_embedding_rsp = startpos_list_embedding.repeat(1, 3).reshape(2, -1, 50)
+        return startpos_list_embedding_rsp
 
-    def forward(self, sent_x, pos_left, pos_right, y):
+    def forward(self, sent_x, pos_left, pos_right, head_startpos_list, end_startpos_list, y):
         word_embedding = self.words_embedding(sent_x)
         pos_left_embedding = self.pos_embedding(pos_left)
         pos_right_embedding = self.pos_embedding(pos_right)
-        net_embending = torch.cat((word_embedding, pos_left_embedding, pos_right_embedding), 1)
-        print(net_embending)
-        print(net_embending.shape)
+
+        # 构建A矩阵
+        start_e_A = self._A_matrix_construct(head_startpos_list).bmm(word_embedding.reshape(2, 50, 3))
+        end_e_A = self._A_matrix_construct(end_startpos_list).bmm(word_embedding.reshape(2, 50, 3))
+
+        net_embedding = torch.cat((word_embedding, pos_left_embedding, pos_right_embedding), 2)
+
+        print(net_embedding)
+        print(net_embedding.shape)
 
 if __name__ == '__main__':
     pos_embedding_id_int = dict(enumerate(np.arange(-28, 28, 1)))
@@ -36,6 +46,8 @@ if __name__ == '__main__':
 
     M = Acnn()
     res = M.forward(torch.from_numpy(np.array([[1,2,3], [2,1,3]])),
-                    torch.from_numpy(np.array([[1], [2]])),
-                    torch.from_numpy(np.array([[2], [2]])),
+                    torch.from_numpy(np.array([[1, 2, 0], [2, 2, 2]])),
+                    torch.from_numpy(np.array([[2, 2, 0], [2, 2, 2]])),
+                    torch.from_numpy(np.array([0, 1])),
+                    torch.from_numpy(np.array([0, 1])),
                     torch.from_numpy(np.array([1,2])))
