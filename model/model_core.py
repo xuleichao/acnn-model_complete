@@ -4,6 +4,7 @@ import torch.nn as nn
 from model.embedding import AcnnEmbedding
 from model.window_slide_utils import window_slide
 from attention.first_attention import diag_array_init, A_matrix_construct
+from model.cnn import acnn_layer
 
 pre_w2v = '/home/codes/pytorch-acnn-model/attention/embeddings.txt'
 
@@ -14,11 +15,14 @@ class Acnn(nn.Module):
         # embending
         self.words_embedding = AcnnEmbedding(13000, 50,
                                              pre_embedding_path=pre_w2v).init_embedding()
+        self.words_embedding.weight.requires_grad=False
         self.pos_embedding = AcnnEmbedding(56, 50).init_embedding()
         # attention first
 
         # res = A_matrix_construct(head_matrix, end_matrix)
         # cnn
+        # 输出16通道，kenel:3 * 3
+        self.cnn = acnn_layer(150, 16, 3)
         # pool attention
     def _A_matrix_construct(self, startpos_list):
         startpos_list_embedding = self.words_embedding(startpos_list)
@@ -33,11 +37,14 @@ class Acnn(nn.Module):
         # 构建A矩阵
         start_e_A = self._A_matrix_construct(head_startpos_list).bmm(word_embedding.reshape(2, 50, 3))
         end_e_A = self._A_matrix_construct(end_startpos_list).bmm(word_embedding.reshape(2, 50, 3))
-
+        word_embedding = (start_e_A.mul(end_e_A)).bmm(word_embedding)
         net_embedding = torch.cat((word_embedding, pos_left_embedding, pos_right_embedding), 2)
+        # CNN输出结果
+        cnn_result = self.cnn(net_embedding.permute(0, 2, 1))
+        # 获得cnn compose 矩阵 R
 
-        print(net_embedding)
-        print(net_embedding.shape)
+        print(cnn_result)
+        print(cnn_result.shape)
 
 if __name__ == '__main__':
     pos_embedding_id_int = dict(enumerate(np.arange(-28, 28, 1)))
