@@ -26,7 +26,7 @@ class Acnn(nn.Module):
         # res = A_matrix_construct(head_matrix, end_matrix)
         # cnn
         # 输出16通道，kenel:3 * 3
-        self.cnn = acnn_layer(150, 16, 3)
+        self.cnn = acnn_layer(1, 16, (3, 150), (1, 150))
         self.Bias_L = Variable(torch.randn(size=(2, 16, 3)))
         # pool attention
         self.U = Variable(torch.randn(size=(2, 16, 10)))
@@ -36,14 +36,14 @@ class Acnn(nn.Module):
         startpos_list_embedding_rsp = startpos_list_embedding.repeat(1, 3).reshape(2, -1, 50)
         return startpos_list_embedding_rsp
 
-    def _R_matrix_construct(self, start, end):
+    def _R_matrix_construct(self, start, end, x_embding):
         R = []
         for i in range(start.shape[0]):
             start_i = start[i]
             end_i = end[i]
             R_i = A_matrix_construct(start_i, end_i)
             R.append(R_i.tolist())
-        return torch.from_numpy(np.array(R, dtype='float32'))
+        return torch.mul(x_embding, torch.from_numpy(np.array(R, dtype='float32')).unsqueeze(-1))
 
     def G_uniform(self, g_matrix):
         g_matrix = torch.exp(g_matrix)
@@ -61,11 +61,12 @@ class Acnn(nn.Module):
         end_e_A = self._A_matrix_construct(end_startpos_list).bmm(word_embedding.reshape(2, 50, 3))
         word_embedding = (start_e_A.mul(end_e_A)).bmm(word_embedding)
         net_embedding = torch.cat((word_embedding, pos_left_embedding, pos_right_embedding), 2)
+        R = self._R_matrix_construct(start_e_A, end_e_A, net_embedding)
         # CNN输出结果
-        cnn_result = self.cnn(net_embedding.permute(0, 2, 1))
+        cnn_result = self.cnn(R.unsqueeze(1))
         # 获得cnn compose 矩阵 R
-        R = self._R_matrix_construct(start_e_A, end_e_A)
-        R_star = torch.tanh(cnn_result.bmm(R.reshape(2, 1, 3)) + self.Bias_L)
+
+        R_star = torch.tanh(cnn_result)
 
         G = R_star.permute(0, 2, 1).bmm(self.U).bmm(self.W_L)  # W^L relation embedding
         G = self.G_uniform(G)
@@ -83,4 +84,8 @@ if __name__ == '__main__':
                     torch.from_numpy(np.array([[2, 2, 0], [2, 2, 2]])).long(),
                     torch.from_numpy(np.array([0, 1])).long(),
                     torch.from_numpy(np.array([0, 1])).long(),
-                    torch.from_numpy(np.array([1,2])).long())
+                    torch.from_numpy(np.array([1, 2])).long())
+    print(res.shape)
+    import torch.optim as optim
+    model = Acnn()
+    optimer = optim.SGD(model.parameters(), lr=0.01, momentum=0.9)
